@@ -5,7 +5,7 @@ import { shortAddr } from '@alvinmunk/shared';
 import { fetchActivity, type FeedItem } from '@/lib/feed';
 import { reverseHandles } from '@/lib/registry';
 import { stroopsToUsdc } from '@/lib/rewards';
-const { FOCUS_MODE } = process.env.NEXT_PUBLIC_FOCUS_MODE === 'true' ? { FOCUS_MODE: true } : { FOCUS_MODE: false };
+import { FOCUS_MODE } from '@/lib/focus';
 import { Frame } from '@/components/fx/frame';
 import { Avatar } from '@/components/Avatar';
 import { StateArt } from '@/components/ui/state-art';
@@ -49,7 +49,7 @@ export function ActivityFeed() {
               <div className="size-8 animate-pulse rounded-full bg-muted/50" />
               <div className="h-2 flex-1 animate-pulse rounded bg-muted/40" />
             </div>
-          ))
+          ))}
         </div>
       ) : visible.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
@@ -73,7 +73,7 @@ export function ActivityFeed() {
                   <Avatar address={it.to} size={22} ring={false} />
                   <span className="truncate text-foreground">{name(it.to)}</span>
                   <span className="shrink-0 text-foreground">
-                    {it.amount != null ? stroopsToUsdc(it.amount) : ''} USDC
+                    {it.amount != null ? `${stroopsToUsdc(it.amount)} USDC` : ''}
                   </span>
                 </>
               ) : (

@@ -5,7 +5,7 @@
  * ledger, newest-first, capped.
  */
 import { EVENTS } from '@alvinmunk/shared';
-import { fetchReputationEvents, fetchRewardsEvents, type RepEvent } from './events';
+import { fetchReputationEvents, fetchTipEvents, type RepEvent } from './events';
 
 export interface FeedItem {
   kind: 'vouch' | 'tip';
@@ -13,11 +13,11 @@ export interface FeedItem {
   to: string;
   ledger: number;
   /** Tip amount in stroops; undefined for vouches. */
-  amount?: big int | number;
+  amount?: bigint;
 }
 
 export async function fetchActivity(max = 12): Promise<FeedItem[]> {
-  const [repEvents, rewardsEvents] = await Promise.all([fetchReputationEvents(), fetchRewardsEvents()]);
+  const [repEvents, rewardsEvents] = await Promise.all([fetchReputationEvents(), fetchTipEvents()]);
 
   const items: FeedItem[] = [];
   for (const ev of repEvents) pushVouch(items, ev);
@@ -38,18 +38,17 @@ function pushVouch(items: FeedItem[], { topics, data, ledger }: RepEvent): void 
 }
 
 function pushTip(items: FeedItem[], { topics, data, ledger }: RepEvent): void {
-  // ('tipped', from, to) -> amount. The window also contains other rewards
-  // events (claims, distributions), so filter on the event name.
+  // ('tipped', from, to) -> amount (the RPC filter already selects `tipped`; re-check anyway).
   if (topics[0] !== EVENTS.TIPPED) return;
   if (topics.length < 3) return;
-  const amount = toNumberOrBig(data);
+  const amount = toStroops(data);
   if (amount === null) return;
   items.push({ kind: 'tip', from: String(topics[1]), to: String(topics[2]), ledger, amount });
 }
 
-/** Normalise a decoded amount (i128 arrives as bigint, smaller as number) to a bigint-or-number. */
-function toNumberOrBig(data: unknown): bigint | number | null {
-  if (typeof data === 'bigint' || typeof data === 'number') return data;
-  if (typeof data === 'string' && /^[0-9]+$/.test(data)) return BigInt(data);
+/** A decoded i128 amount (bigint, or a number for small values) as stroops. */
+function toStroops(data: unknown): bigint | null {
+  if (typeof data === 'bigint') return data;
+  if (typeof data === 'number' && Number.isInteger(data)) return BigInt(data);
   return null;
 }
