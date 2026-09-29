@@ -11,7 +11,7 @@ import { shareInFlight } from './utils';
 
 /**
  * RPC event retention is ~24h; staying within ~9000 ledgers keeps `getEvents` returning
- * rows instead of an out-of-range error (≥16k returns 0 events). It must also stay under
+ * rows instead of an out-of-range error (>16k returns 0 events). It must also stay under
  * the 10,000 ledgers stellar-rpc scans per request: only then does a short page mean the
  * scan reached the latest ledger (see `scanContractEvents`).
  */
@@ -61,6 +61,15 @@ export async function fetchReputationEvents(options?: { throwOnError?: boolean }
 }
 
 /**
+ * Every rewards-contract event in the window (decoded), in RPC order (oldest-first).
+ * Same window and decode as `fetchReputationEvents`, so the feed can merge tip and
+ * vouch streams by ledger. Returns [] if the contract isn't deployed or RPC is unavailable.
+ */
+export async function fetchRewardsEvents(options?: { throwOnError?: boolean }): Promise<RepEvent[]> {
+  return fetchContractEvents(config.contracts.rewards, ['*', '*'], PAGE_SIZE * MAX_PAGES, options?.throwOnError);
+}
+
+/**
  * `tipped` events SENT by `from` (topics ('tipped', from, to) · data amount), oldest-first.
  * RPC topic filters only match events with exactly as many topics as segments, so the
  * 2-segment wildcard above never sees these 3-topic events; filtering on the sender here
@@ -71,7 +80,7 @@ export async function fetchTipsSent(from: string, limit = 1): Promise<RepEvent[]
   try {
     sender = new Address(from).toScVal().toXDR('base64');
   } catch {
-    return []; // not a valid G…/C… address
+    return []; // not a valid G… C… address
   }
   const tipped = xdr.ScVal.scvSymbol(EVENTS.TIPPED).toXDR('base64');
   return fetchContractEvents(config.contracts.rewards, [tipped, sender, '*'], limit);
@@ -93,7 +102,7 @@ function fetchContractEvents(contractId: string, topics: string[], limit: number
  * The first `limit` matching events of the window, oldest-first, paged through with the
  * RPC cursor (at most MAX_PAGES requests). stellar-rpc's `getEvents` contract:
  *   - `startLedger` and `cursor` are mutually exclusive, so only the first page sends
- *     `startLedger`; every later page sends just the previous response's `cursor`.
+ *     `startLedger; every later page sends just the previous response's `cursor`.
  *   - Each request scans at most 10,000 ledgers from its start and returns up to `limit`
  *     events, ascending. A full page's `cursor` is its last event; a short page's is the
  *     end of the scanned range — and as the window fits in one scan, that end is the

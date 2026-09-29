@@ -1,7 +1,7 @@
 import React from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,11 +37,11 @@ describe('ActivityFeed', () => {
   });
 
   it('labels every row with one batched lookup, and does not ask again for unnamed ones', async () => {
-    fetchActivityMock.mockResolvedValue([
-      { from: ALICE, to: BOB, ledger: 2 },
-      { from: CAROL, to: ALICE, ledger: 1 },
+    fetchActivityMock.mockResolved([
+      { from: ALICE, to: BOB, ledger: 2, kind: 'vouch' },
+      { from: CAROL, to: ALICE, ledger: 1, kind: 'vouch' },
     ]);
-    reverseHandlesMock.mockResolvedValue({ [ALICE]: 'alice', [BOB]: null, [CAROL]: null });
+    reverseHandlesMock.mockResolved({ [ALICE]: 'alice', [BOB]: null, [CAROL]: null });
 
     await act(async () => root.render(<ActivityFeed />));
     // let the feed read, the label read and any effect they trigger settle
@@ -51,5 +51,30 @@ describe('ActivityFeed', () => {
     expect(reverseHandlesMock).toHaveBeenCalledWith([ALICE, BOB, CAROL]);
     expect(container.textContent).toContain('@alice');
     expect(container.textContent).toContain(`${BOB.slice(0, 4)}…${BOB.slice(-4)}`);
+  });
+
+  it('renders tips merged with vouches, newest first', async () => {
+    fetchActivityMock.mockResolved([
+      { from: ALICE, to: BOB, ledger: 1, kind: 'vouch' },
+      { from: BOB, to: CAROL, ledger: 3, kind: 'tip', amount: 2000000 },
+      { from: CAROL, to: ALICE, ledger: 2, kind: 'tip', amount: 5000000 },
+    ]);
+    reverseHandlesMock.mockResolved({ [ALICE]: 'alice', [BOB]: 'bob', [CAROL]: 'carol' });
+
+    await act(async () => root.render(<ActivityFeed />));
+    for (let i = 0; i < 4; i++) await act(async () => Promise.resolve());
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('@bob');
+    expect(text).toContain('@carol');
+    expect(text).toContain('@tipped');
+    expect(text).toContain('0.2');
+    expect(text).toContain('0.5');
+
+    const bobIdx = text.indexOf('@bob');
+    const carolIdx = text.indexOf('@carol');
+    expect(bobIdx).toBeGreaterThan(-1);
+    expect(carolIdx).toBeGreaterThan(-1);
+    expect(bobIdx).toBeLessThan(carolIdx);
   });
 });
